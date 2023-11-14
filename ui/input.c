@@ -5,12 +5,14 @@
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
+#include <unistd.h>
 
 int input()
 {
     printf("나 input 프로세스!\n");
 
-    while (1) {
+    while (1)
+    {
         sleep(1);
     }
 
@@ -23,6 +25,16 @@ int create_input()
     const char *name = "input";
 
     printf("여기서 input 프로세스를 생성합니다.\n");
+
+    if ((systemPid = fork()) < 0)
+    {
+        perror("input fork error");
+        exit(-1);
+    }
+    else if (systemPid == 0)
+    {
+        input();
+    }
 
     return 0;
 }
