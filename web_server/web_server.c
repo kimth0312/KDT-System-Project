@@ -22,9 +22,5 @@ int create_web_server()
         execl("/usr/local/bin/filebrowser", "filebrowser", "-p", "8282", (char *)NULL);
     }
 
-    /* fork + exec 를 이용하세요 */
-    /* exec으로 filebrowser을 실행 하세요. */
-    /* execl("/usr/local/bin/filebrowser", "filebrowser", "-p", "8282", (char *) NULL)) */
-
     return 0;
 }

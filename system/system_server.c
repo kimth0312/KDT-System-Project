@@ -34,6 +34,8 @@ int create_system_server()
     }
     else if (systemPid == 0)
     {
+        if (prctl(PR_SET_NAME, (unsigned long)name) < 0)
+            perror("prctl()");
         system_server();
     }
 
