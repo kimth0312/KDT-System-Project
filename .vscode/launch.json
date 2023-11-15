@@ -5,7 +5,7 @@
             "name": "C Debug",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceRoot}/bin/toy_system",
+            "program": "${workspaceRoot}/toy_system",
             "cwd": "${workspaceRoot}",
             "args": [],
             "stopAtEntry": true
