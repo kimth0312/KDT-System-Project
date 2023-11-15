@@ -25,6 +25,7 @@ int posix_sleep_ms(unsigned int timeout_ms)
 
 void timer_handler(int sig)
 {
+    // mutex로 막아야 하는지 고민
     toy_timer++;
     // debugging purpose
     // printf("toy_timer : %d\n", toy_timer);
