@@ -3,6 +3,8 @@
 #include <signal.h>
 #include <sys/time.h>
 #include <time.h>
+#include <pthread.h>
+#include <assert.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -25,7 +27,7 @@ void timer_handler(int sig)
 {
     toy_timer++;
     // debugging purpose
-    printf("toy_timer : %d\n", toy_timer);
+    // printf("toy_timer : %d\n", toy_timer);
 }
 
 void set_timer()
@@ -44,12 +46,49 @@ void set_timer()
     }
 }
 
+void *watchdog_thread_handler()
+{
+    printf("watchdog thread handler operating\n");
+    while (1)
+    {
+        sleep(1);
+    }
+}
+
+void *monitor_thread_handler()
+{
+    printf("monitor thread handler operating\n");
+    while (1)
+    {
+        sleep(1);
+    }
+}
+
+void *disk_service_thread_handler()
+{
+    printf("disk service thread handler operating\n");
+    while (1)
+    {
+        sleep(1);
+    }
+}
+
+void *camera_service_thread_handler()
+{
+    printf("camera service thread handler operating\n");
+    while (1)
+    {
+        sleep(1);
+    }
+}
+
 int system_server()
 {
     struct itimerspec ts;
     struct sigaction sa;
     struct sigevent sev;
     timer_t *tidlist;
+    pthread_t watchdog_thread_tid, monitor_thread_tid, disk_service_thread_tid, camera_service_thread_tid;
 
     printf("나 system_server 프로세스!\n");
 
@@ -64,6 +103,17 @@ int system_server()
 
     set_timer();
 
+    pthread_create(&watchdog_thread_tid, NULL, watchdog_thread_handler, NULL);
+    pthread_create(&monitor_thread_tid, NULL, monitor_thread_handler, NULL);
+    pthread_create(&disk_service_thread_tid, NULL, disk_service_thread_handler, NULL);
+    pthread_create(&camera_service_thread_tid, NULL, camera_service_thread_handler, NULL);
+
+    pthread_detach(watchdog_thread_tid);
+    pthread_detach(monitor_thread_tid);
+    pthread_detach(disk_service_thread_tid);
+    pthread_detach(camera_service_thread_tid);
+
+    printf("system init done. waiting...\n");
     while (1)
     {
         sleep(1);
