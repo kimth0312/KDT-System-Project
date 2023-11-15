@@ -74,10 +74,25 @@ void *monitor_thread_handler(void *arg)
 
 void *disk_service_thread_handler(void *arg)
 {
-    printf("disk service thread handler operating\n");
+    char *s = (char *)arg;
+    FILE *apipe;
+    char buf[1024];
+    char cmd[] = "df -h ./";
+
+    printf("%s", s);
+
     while (1)
     {
-        sleep(1);
+        apipe = popen(cmd, "r");
+        if (apipe == NULL)
+        {
+            printf("popen() failed\n");
+            continue;
+        }
+
+        while (fgets(buf, 1024, apipe) != NULL)
+            printf("%s", buf);
+        sleep(5);
     }
 }
 

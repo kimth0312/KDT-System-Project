@@ -335,18 +335,18 @@ int input()
 
     pthread_detach(command_thread_tid);
     pthread_detach(sensor_thread_tid);
+    /*
+        pthread_mutex_lock(&global_message_mutex);
+        strcpy(global_message, "hello world!");
+        buflen = strlen(global_message);
+        pthread_mutex_unlock(&global_message_mutex);
+        pthread_create(&thread[0], NULL, (void *)toy_consumer, &thread_id[0]);
+        pthread_create(&thread[1], NULL, toy_producer, &thread_id[1]);
+        pthread_create(&thread[2], NULL, toy_producer, &thread_id[2]);
 
-    pthread_mutex_lock(&global_message_mutex);
-    strcpy(global_message, "hello world!");
-    buflen = strlen(global_message);
-    pthread_mutex_unlock(&global_message_mutex);
-    pthread_create(&thread[0], NULL, (void *)toy_consumer, &thread_id[0]);
-    pthread_create(&thread[1], NULL, toy_producer, &thread_id[1]);
-    pthread_create(&thread[2], NULL, toy_producer, &thread_id[2]);
-
-    for (i = 0; i < NUMTHREAD; i++)
-        pthread_join(thread[i], NULL);
-
+        for (i = 0; i < NUMTHREAD; i++)
+            pthread_join(thread[i], NULL);
+    */
     while (1)
     {
         sleep(1);
