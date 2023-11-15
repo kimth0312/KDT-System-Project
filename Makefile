@@ -1,31 +1,45 @@
-# $(foreach var, list, text) : 여러 디렉터리에 특정 규칙을 적용할 떄 유용함.
-# $(wildcard pattern) : 특정 패턴을 찾는 데 유용함.
-# $(addprefix prefix, names) : 파일 경로를 조합할 때 유용하게 쓰이는 접두사 붙이기.
+TARGET = toy_system
+
+SYSTEM = ./system
+UI = ./ui
+WEB_SERVER = ./web_server
+HAL = ./hal
+
+INCLUDES = -I$(SYSTEM) -I$(UI) -I$(WEB_SERVER) -I$(HAL)
 
 CC = gcc
-CFLAGS = -Wall -g -W
-LDFLAGS =
+CXXLIBS = -lpthread -lm -lrt
+CXXFLAGS = $(INCLUDEDIRS) -g -O0 -std=c++14
+CXX = g++
 
-SRCDIRS = . system ui web_server
+objects = main.o system_server.o web_server.o input.o gui.o
+cxx_objects = camera_HAL.o ControlThread.o
 
-SRCS = $(foreach dir,$(SRCDIRS),$(wildcard $(dir)/*.c))
-OBJS = $(SRCS:.c=.o)
+$(TARGET): $(objects) $(cxx_objects)
+	$(CXX) -o $(TARGET) $(objects) $(cxx_objects) $(CXXLIBS)
 
-INCDIRS = $(foreach dir,$(SRCDIRS),-I $(dir))
+main.o:  main.c
+	$(CC) -g $(INCLUDES) -c main.c
 
-TARGET_PATH = ./bin
+system_server.o: $(SYSTEM)/system_server.h $(SYSTEM)/system_server.c
+	$(CC) -g $(INCLUDES) -c ./system/system_server.c
 
-TARGET = $(addprefix $(TARGET_PATH)/, toy_system)
+gui.o: $(UI)/gui.h $(UI)/gui.c
+	$(CC) -g $(INCLUDES) -c $(UI)/gui.c
 
-all: $(TARGET)
+input.o: $(UI)/input.h $(UI)/input.c
+	$(CC) -g $(INCLUDES) -c $(UI)/input.c
 
-$(TARGET): $(OBJS)
-	mkdir ./bin 2> /dev/null || true
-	$(CC) $(CFLAGS) $(INCDIRS) -o $@ $(OBJS) $(LDFLAGS)
+web_server.o: $(WEB_SERVER)/web_server.h $(WEB_SERVER)/web_server.c
+	$(CC) -g $(INCLUDES) -c $(WEB_SERVER)/web_server.c
 
-%.o: %.c
-	$(CC) $(CFLAGS) $(INCDIRS) -c $< -o $@
+camera_HAL.o: $(HAL)/camera_HAL.cpp
+	$(CXX) -g $(INCLUDES) $(CXXFLAGS) -c  $(HAL)/camera_HAL.cpp
+
+ControlThread.o: $(HAL)/ControlThread.cpp
+	$(CXX) -g $(INCLUDES) $(CXXFLAGS) -c  $(HAL)/ControlThread.cpp
 
 .PHONY: clean
 clean:
-	rm -rf $(TARGET) $(OBJS) $(TARGET_PATH)
+	rm -rf *.o
+	rm -rf $(TARGET)

@@ -37,7 +37,6 @@ typedef struct _sig_ucontext
 } sig_ucontext_t;
 
 static pthread_mutex_t global_message_mutex = PTHREAD_MUTEX_INITIALIZER;
-
 static char global_message[TOY_BUFFSIZE];
 
 void segfault_handler(int sig_num, siginfo_t *info, void *ucontext)
@@ -77,7 +76,7 @@ void segfault_handler(int sig_num, siginfo_t *info, void *ucontext)
 void *sensor_thread(void *arg)
 {
     char saved_message[TOY_BUFFSIZE];
-    char *s = arg;
+    char *s = (char *)arg;
     int i = 0;
 
     printf("%s\n", s);
@@ -180,7 +179,7 @@ int toy_execute(char **args)
     if (args[0] == NULL)
         return 1;
 
-    for (i = 0; i < toy_num_builtins; i++)
+    for (i = 0; i < toy_num_builtins(); i++)
     {
         if (strcmp(args[0], builtin_str[i]) == 0)
             return (*builtin_func[i])(args);
@@ -190,7 +189,7 @@ int toy_execute(char **args)
 char *toy_read_line(void)
 {
     char *line = NULL;
-    ssize_t bufsize = 0;
+    size_t bufsize = 0;
 
     if (getline(&line, &bufsize, stdin) == -1)
     {
@@ -208,7 +207,7 @@ char *toy_read_line(void)
 char **toy_split_line(char *line)
 {
     int bufsize = TOY_TOK_BUFSIZE, position = 0;
-    char **tokens = malloc(bufsize * sizeof(char *));
+    char **tokens = (char **)malloc(bufsize * sizeof(char *));
     char *token, **tokens_backup;
 
     if (!tokens)
@@ -226,7 +225,7 @@ char **toy_split_line(char *line)
         if (position >= bufsize)
         {
             bufsize += TOY_TOK_BUFSIZE;
-            tokens_backup = realloc(tokens, bufsize * sizeof(char *));
+            tokens_backup = (char **)realloc(tokens, bufsize * sizeof(char *));
             if (!tokens)
             {
                 free(tokens_backup);
@@ -262,25 +261,68 @@ void toy_loop(void)
 
 void *command_thread(void *arg)
 {
-    char *s = arg;
+    char *s = (char *)arg;
     printf("%s\n", s);
     toy_loop();
     return 0;
 }
 
+#define MAX 30
+#define NUMTHREAD 3
+
+char buffer[TOY_BUFFSIZE];
+int read_count = 0, write_count = 0;
+int buflen;
+pthread_mutex_t count_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t empty = PTHREAD_COND_INITIALIZER;
+int thread_id[NUMTHREAD] = {0, 1, 2};
+int producer_count = 0, consumer_count = 0;
+
+void *toy_consumer(int *id)
+{
+    pthread_mutex_lock(&count_mutex);
+    while (consumer_count < MAX)
+    {
+        pthread_cond_wait(&empty, &count_mutex);
+        printf("                           소비자[%d]: %c\n", *id, buffer[read_count]);
+        read_count = (read_count + 1) % TOY_BUFFSIZE;
+        fflush(stdout);
+        consumer_count++;
+    }
+    pthread_mutex_unlock(&count_mutex);
+}
+
+void *toy_producer(int *id)
+{
+    while (producer_count < MAX)
+    {
+        pthread_mutex_lock(&count_mutex);
+        strcpy(buffer, "");
+        buffer[write_count] = global_message[write_count % buflen];
+        printf("%d - 생산자[%d]: %c \n", producer_count, *id, buffer[write_count]);
+        fflush(stdout);
+        write_count = (write_count + 1) % TOY_BUFFSIZE;
+        producer_count++;
+        pthread_cond_signal(&empty);
+        pthread_mutex_unlock(&count_mutex);
+        sleep(rand() % 3);
+    }
+}
+
 int input()
 {
     int retcode;
-    sigset_t blockMask, emptyMask;
     struct sigaction sa;
     pthread_t command_thread_tid, sensor_thread_tid;
+    int i;
+    pthread_t thread[NUMTHREAD];
 
     printf("나 input 프로세스!\n");
 
     // SIGSEGV 시그널 등록
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-    sa.sa_handler = segfault_handler;
+    sa.sa_sigaction = segfault_handler;
     if (sigaction(SIGSEGV, &sa, NULL) == -1)
     {
         perror("sigaction");
@@ -288,11 +330,22 @@ int input()
     }
 
     // create threads
-    pthread_create(&command_thread_tid, NULL, command_thread, "command thread operates");
-    pthread_create(&sensor_thread_tid, NULL, sensor_thread, "sensor thread operates");
+    pthread_create(&command_thread_tid, NULL, command_thread, (void *)"command thread operates");
+    pthread_create(&sensor_thread_tid, NULL, sensor_thread, (void *)"sensor thread operates");
 
     pthread_detach(command_thread_tid);
     pthread_detach(sensor_thread_tid);
+
+    pthread_mutex_lock(&global_message_mutex);
+    strcpy(global_message, "hello world!");
+    buflen = strlen(global_message);
+    pthread_mutex_unlock(&global_message_mutex);
+    pthread_create(&thread[0], NULL, (void *)toy_consumer, &thread_id[0]);
+    pthread_create(&thread[1], NULL, toy_producer, &thread_id[1]);
+    pthread_create(&thread[2], NULL, toy_producer, &thread_id[2]);
+
+    for (i = 0; i < NUMTHREAD; i++)
+        pthread_join(thread[i], NULL);
 
     while (1)
     {
