@@ -83,24 +83,12 @@ void segfault_handler(int sig_num, siginfo_t *info, void *ucontext)
 // sensor thread
 void *sensor_thread(void *arg)
 {
-    char saved_message[TOY_BUFFSIZE];
     char *s = (char *)arg;
-    int i = 0;
 
     printf("%s\n", s);
 
     while (1)
     {
-        i = 0;
-        pthread_mutex_lock(&global_message_mutex);
-        while (global_message[i] != NULL)
-        {
-            printf("%c", global_message[i]);
-            fflush(stdout);
-            sleep(0.5);
-            i++;
-        }
-        pthread_mutex_unlock(&global_message_mutex);
         sleep(5);
     }
 
@@ -165,6 +153,8 @@ int toy_message_queue(char **args)
         mqretcode = mq_send(camera_queue, (char *)&msg, sizeof(msg), 0);
         assert(mqretcode == 0);
     }
+
+    return 1;
 }
 
 int toy_exit(char **args)

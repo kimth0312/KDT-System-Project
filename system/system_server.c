@@ -67,20 +67,18 @@ void *watchdog_thread_handler(void *arg)
     char *s = (char *)arg;
     int mqretcode;
     toy_msg_t msg;
-    struct mq_attr attr;
-    void *buffer;
 
     printf("%s", s);
-
-    watchdog_queue = mq_open("/watchdog_queue", O_RDWR);
-    mq_getattr(watchdog_queue, &attr);
-
-    buffer = malloc(attr.mq_msgsize);
 
     printf("watchdog thread handler operating\n");
     while (1)
     {
-        mqretcode = mq_receive(watchdog_queue, buffer, attr.mq_msgsize, 0);
+        mqretcode = (int)mq_receive(watchdog_queue, (void *)&msg, sizeof(toy_msg_t), 0);
+        assert(mqretcode >= 0);
+        printf("watchdog_thread: 메시지가 도착했습니다.\n");
+        printf("msg.type: %d\n", msg.msg_type);
+        printf("msg.param1: %d\n", msg.param1);
+        printf("msg.param2: %d\n", msg.param2);
     }
 }
 
@@ -89,20 +87,18 @@ void *monitor_thread_handler(void *arg)
     char *s = (char *)arg;
     int mqretcode;
     toy_msg_t msg;
-    struct mq_attr attr;
-    void *buffer;
 
     printf("%s", s);
-
-    monitor_queue = mq_open("/monitor_queue", O_RDWR);
-    mq_getattr(monitor_queue, &attr);
-
-    buffer = malloc(attr.mq_msgsize);
 
     printf("monitor thread handler operating\n");
     while (1)
     {
-        mqretcode = mq_receive(monitor_queue, buffer, attr.mq_msgsize, 0);
+        mqretcode = (int)mq_receive(monitor_queue, (void *)&msg, sizeof(toy_msg_t), 0);
+        assert(mqretcode >= 0);
+        printf("monitor_thread: 메시지가 도착했습니다.\n");
+        printf("msg.type: %d\n", msg.msg_type);
+        printf("msg.param1: %d\n", msg.param1);
+        printf("msg.param2: %d\n", msg.param2);
     }
 }
 
@@ -115,23 +111,18 @@ void *disk_service_thread_handler(void *arg)
 
     int mqretcode;
     toy_msg_t msg;
-    struct mq_attr attr;
-    void *buffer;
 
     printf("%s", s);
 
-    disk_queue = mq_open("/disk_queue", O_RDWR);
-    mq_getattr(disk_queue, &attr);
-
-    buffer = malloc(attr.mq_msgsize);
-
     while (1)
     {
-        mqretcode = mq_receive(disk_queue, buffer, attr.mq_msgsize, 0);
-    }
+        mqretcode = (int)mq_receive(disk_queue, (void *)&msg, sizeof(toy_msg_t), 0);
+        assert(mqretcode >= 0);
+        printf("disk_service_thread: 메시지가 도착했습니다.\n");
+        printf("msg.type: %d\n", msg.msg_type);
+        printf("msg.param1: %d\n", msg.param1);
+        printf("msg.param2: %d\n", msg.param2);
 
-    while (1)
-    {
         apipe = popen(cmd, "r");
         if (apipe == NULL)
         {
@@ -147,6 +138,8 @@ void *disk_service_thread_handler(void *arg)
     }
 }
 
+#define CAMERA_TAKE_PICTURE 1
+
 void *camera_service_thread_handler(void *arg)
 {
     char *s = (char *)arg;
@@ -155,7 +148,7 @@ void *camera_service_thread_handler(void *arg)
 
     printf("%s", s);
 
-    camera_queue = mq_open("/camera_queue", O_RDWR);
+    toy_camera_open();
 
     while (1)
     {
@@ -165,9 +158,8 @@ void *camera_service_thread_handler(void *arg)
         printf("msg.type : %d\n", msg.msg_type);
         printf("msg.param1 : %d\n", msg.param1);
         printf("msg.param2 : %d\n", msg.param2);
-
-        toy_camera_open();
-        toy_camera_take_picture();
+        if (msg.msg_type == CAMERA_TAKE_PICTURE)
+            toy_camera_take_picture();
     }
 
     return 0;
@@ -201,8 +193,16 @@ int system_server()
         exit(-1);
     }
 
-    // camera_queue = mq_open("/camera_queue", O_RDWR, 0666, NULL);
     set_timer(10);
+
+    watchdog_queue = mq_open("/watchdog_queue", O_RDWR);
+    assert(watchdog_queue != -1);
+    monitor_queue = mq_open("/monitor_queue", O_RDWR);
+    assert(monitor_queue != -1);
+    disk_queue = mq_open("/disk_queue", O_RDWR);
+    assert(disk_queue != -1);
+    camera_queue = mq_open("/camera_queue", O_RDWR);
+    assert(camera_queue != -1);
 
     pthread_create(&watchdog_thread_tid, NULL, watchdog_thread_handler, NULL);
     pthread_create(&monitor_thread_tid, NULL, monitor_thread_handler, NULL);
