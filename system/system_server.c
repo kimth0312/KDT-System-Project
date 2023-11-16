@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include <assert.h>
 #include <mqueue.h>
+#include <assert.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -14,6 +15,7 @@
 #include <camera_HAL.h>
 #include <toy_message.h>
 #include <semaphore.h>
+#include <shared_memory.h>
 
 pthread_mutex_t system_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t system_loop_cond = PTHREAD_COND_INITIALIZER;
@@ -28,6 +30,8 @@ static int toy_timer = 0;
 pthread_mutex_t toy_timer_mutex = PTHREAD_MUTEX_INITIALIZER;
 static sem_t global_timer_sem;
 static bool global_timer_stopped;
+
+static shm_sensor_t *the_sensor_info = NULL;
 
 void signal_exit(void);
 void set_timer(int time, int interval);
@@ -107,15 +111,17 @@ void *watchdog_thread_handler(void *arg)
     }
 }
 
+#define SENSOR_DATA 1
+
 void *monitor_thread_handler(void *arg)
 {
-    char *s = (char *)arg;
+    char *s = arg;
     int mqretcode;
     toy_msg_t msg;
+    int shmid;
 
     printf("%s", s);
 
-    printf("monitor thread handler operating\n");
     while (1)
     {
         mqretcode = (int)mq_receive(monitor_queue, (void *)&msg, sizeof(toy_msg_t), 0);
@@ -124,7 +130,18 @@ void *monitor_thread_handler(void *arg)
         printf("msg.type: %d\n", msg.msg_type);
         printf("msg.param1: %d\n", msg.param1);
         printf("msg.param2: %d\n", msg.param2);
+        if (msg.msg_type == SENSOR_DATA)
+        {
+            shmid = msg.param1;
+            the_sensor_info = toy_shm_attach(shmid);
+            printf("sensor temp: %d\n", the_sensor_info->temp);
+            printf("sensor info: %d\n", the_sensor_info->press);
+            printf("sensor humidity: %d\n", the_sensor_info->humidity);
+            toy_shm_detach(the_sensor_info);
+        }
     }
+
+    return 0;
 }
 
 void *disk_service_thread_handler(void *arg)
