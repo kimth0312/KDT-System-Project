@@ -13,7 +13,7 @@
 #include <web_server.h>
 #include <camera_HAL.h>
 #include <toy_message.h>
-// #include <bits/mqueue.h>
+#include <semaphore.h>
 
 pthread_mutex_t system_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t system_loop_cond = PTHREAD_COND_INITIALIZER;
@@ -25,8 +25,12 @@ static mqd_t disk_queue;
 static mqd_t camera_queue;
 
 static int toy_timer = 0;
+pthread_mutex_t toy_timer_mutex = PTHREAD_MUTEX_INITIALIZER;
+static sem_t global_timer_sem;
+static bool global_timer_stopped;
 
 void signal_exit(void);
+void set_timer(int time, int interval);
 
 int posix_sleep_ms(unsigned int timeout_ms)
 {
@@ -38,21 +42,42 @@ int posix_sleep_ms(unsigned int timeout_ms)
     return nanosleep(&sleep_time, NULL);
 }
 
-void timer_handler(int sig)
+static void timer_expire_signal_handler()
 {
-    toy_timer++;
-    // signal_exit();
-    // debugging purpose
-    // printf("toy_timer : %d\n", toy_timer);
+    // sem post 사용해서 timer_thread_handler에 루프가 활성화 될 수 있도록 만들기.
+    // 시그널 핸들러 함수이기에 빠른 처리가 필요함.
+    sem_post(&global_timer_sem);
 }
 
-void set_timer(int time)
+static void system_timeout_handler()
+{
+    pthread_mutex_lock(&toy_timer_mutex);
+    toy_timer++;
+    printf("toy timer: %d\n", toy_timer);
+    pthread_mutex_unlock(&toy_timer_mutex);
+}
+
+void *timer_thread_handler(void *arg)
+{
+    signal(SIGALRM, timer_expire_signal_handler);
+    set_timer(1, 1);
+
+    while (!global_timer_stopped)
+    {
+        // sleep을 sem_wait 함수를 사용하여 동기화 처리
+        sem_wait(&global_timer_sem);
+        system_timeout_handler();
+    }
+    return 0;
+}
+
+void set_timer(int time, int interval)
 {
     struct itimerval itv;
 
     itv.it_value.tv_sec = time;
     itv.it_value.tv_usec = 0;
-    itv.it_interval.tv_sec = time;
+    itv.it_interval.tv_sec = interval;
     itv.it_interval.tv_usec = 0;
 
     if (setitimer(ITIMER_REAL, &itv, NULL) == -1)
@@ -180,20 +205,9 @@ int system_server()
     struct sigaction sa;
     struct sigevent sev;
     timer_t *tidlist;
-    pthread_t watchdog_thread_tid, monitor_thread_tid, disk_service_thread_tid, camera_service_thread_tid;
+    pthread_t watchdog_thread_tid, monitor_thread_tid, disk_service_thread_tid, camera_service_thread_tid, timer_thread_tid;
 
     printf("나 system_server 프로세스!\n");
-
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    sa.sa_handler = timer_handler;
-    if (sigaction(SIGALRM, &sa, NULL) == -1)
-    {
-        perror("sigaction: Timer");
-        exit(-1);
-    }
-
-    set_timer(10);
 
     watchdog_queue = mq_open("/watchdog_queue", O_RDWR);
     assert(watchdog_queue != -1);
@@ -208,11 +222,13 @@ int system_server()
     pthread_create(&monitor_thread_tid, NULL, monitor_thread_handler, NULL);
     pthread_create(&disk_service_thread_tid, NULL, disk_service_thread_handler, NULL);
     pthread_create(&camera_service_thread_tid, NULL, camera_service_thread_handler, NULL);
+    pthread_create(&timer_thread_tid, NULL, timer_thread_handler, NULL);
 
     pthread_detach(watchdog_thread_tid);
     pthread_detach(monitor_thread_tid);
     pthread_detach(disk_service_thread_tid);
     pthread_detach(camera_service_thread_tid);
+    pthread_detach(timer_thread_tid);
 
     printf("system init done. waiting...\n");
 
@@ -224,10 +240,6 @@ int system_server()
     pthread_mutex_unlock(&system_loop_mutex);
 
     printf("<== system\n");
-    while (system_loop_exit == false)
-    {
-        sleep(1);
-    }
 
     while (1)
     {
