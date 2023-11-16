@@ -57,7 +57,7 @@ static void system_timeout_handler()
 {
     pthread_mutex_lock(&toy_timer_mutex);
     toy_timer++;
-    printf("toy timer: %d\n", toy_timer);
+    // printf("toy timer: %d\n", toy_timer);
     pthread_mutex_unlock(&toy_timer_mutex);
 }
 
