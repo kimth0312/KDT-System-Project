@@ -207,6 +207,8 @@ int toy_read_elf_header(char **args)
     printf("Object file version : %d\n", map->e_version);
     printf("Entry point virtual address : %ld\n", map->e_entry);
     printf("Program header table file offset : %ld\n", map->e_phoff);
+
+    munmap(map, sizeof(Elf64Hdr));
 }
 
 int toy_exit(char **args)

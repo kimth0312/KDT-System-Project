@@ -7,6 +7,12 @@
 #include <assert.h>
 #include <mqueue.h>
 #include <assert.h>
+#include <sys/inotify.h>
+#include <limits.h>
+#include <sys/sysmacros.h>
+#include <errno.h>
+#include <dirent.h>
+#include <sys/stat.h>
 
 #include <system_server.h>
 #include <gui.h>
@@ -16,6 +22,9 @@
 #include <toy_message.h>
 #include <semaphore.h>
 #include <shared_memory.h>
+
+#define BUF_LEN 1024
+#define TOY_TEST_FS "./fs"
 
 pthread_mutex_t system_loop_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t system_loop_cond = PTHREAD_COND_INITIALIZER;
@@ -144,40 +153,102 @@ void *monitor_thread_handler(void *arg)
     return 0;
 }
 
+// https://stackoverflow.com/questions/21618260/how-to-get-total-size-of-subdirectories-in-c
+static long total_dir_size(char *dirname)
+{
+    DIR *dir = opendir(dirname);
+    if (dir == 0)
+        return 0;
+
+    struct dirent *dit;
+    struct stat st;
+    long size = 0;
+    long total_size = 0;
+    char filePath[1024];
+
+    while ((dit = readdir(dir)) != NULL)
+    {
+        if ((strcmp(dit->d_name, ".") == 0) || (strcmp(dit->d_name, "..") == 0))
+            continue;
+
+        sprintf(filePath, "%s/%s", dirname, dit->d_name);
+        if (lstat(filePath, &st) != 0)
+            continue;
+        size = st.st_size;
+
+        if (S_ISDIR(st.st_mode))
+        {
+            long dir_size = total_dir_size(filePath) + size;
+            total_size += dir_size;
+        }
+        else
+        {
+            total_size += size;
+        }
+    }
+    return total_size;
+}
+/*
+int total_dir_size(struct stat sb, const char *directory)
+{
+    DIR *dirp;
+    struct dirent *dp;
+    int total_size = 0;
+
+    dirp = opendir(directory);
+    if (dirp == NULL)
+    {
+        perror("open failed on fs");
+        exit(-1);
+    }
+
+    while ((dp = readdir(dirp)) != NULL)
+    {
+        if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0)
+            continue;
+        total_size += sb.st_size;
+    }
+
+    return total_size;
+}
+*/
 void *disk_service_thread_handler(void *arg)
 {
-    char *s = (char *)arg;
-    FILE *apipe;
-    char buf[1024];
-    char cmd[] = "df -h ./";
-
-    int mqretcode;
-    toy_msg_t msg;
+    char *s = arg;
+    int inotifyFD, wd, j;
+    char buf[BUF_LEN] __attribute__((aligned(8)));
+    ssize_t numRead;
+    char *p;
+    struct inotify_event *event;
+    struct stat sb;
+    char *directory = TOY_TEST_FS;
+    int total_size = 0;
 
     printf("%s", s);
 
+    inotifyFD = inotify_init();
+    if (inotifyFD == -1)
+        perror("inotify_init");
+
+    wd = inotify_add_watch(inotifyFD, directory, IN_CREATE);
+    if (wd == -1)
+        perror("inotify_add_watch");
+
     while (1)
     {
-        mqretcode = (int)mq_receive(disk_queue, (void *)&msg, sizeof(toy_msg_t), 0);
-        assert(mqretcode >= 0);
-        printf("disk_service_thread: 메시지가 도착했습니다.\n");
-        printf("msg.type: %d\n", msg.msg_type);
-        printf("msg.param1: %d\n", msg.param1);
-        printf("msg.param2: %d\n", msg.param2);
+        numRead = read(inotifyFD, buf, BUF_LEN);
+        if (numRead == 0)
+            perror("read() from inotify fd returned 0!");
+        if (numRead == -1)
+            perror("read");
 
-        apipe = popen(cmd, "r");
-        if (apipe == NULL)
-        {
-            printf("popen() failed\n");
-            continue;
-        }
+        printf("Read %ld bytes from inotify fd\n", (long)numRead);
+        total_size = total_dir_size(directory);
 
-        while (fgets(buf, 1024, apipe) != NULL)
-            printf("%s", buf);
-
-        pclose(apipe);
-        sleep(5);
+        printf("Total directory size : %d\n", total_size);
     }
+
+    return 0;
 }
 
 #define CAMERA_TAKE_PICTURE 1
