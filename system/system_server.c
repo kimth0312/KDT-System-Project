@@ -121,6 +121,48 @@ void *watchdog_thread_handler(void *arg)
 }
 
 #define SENSOR_DATA 1
+#define DUMP_STATE 2
+
+void dumpstate_handler(const char *fileName)
+{
+    char buf[30000];
+
+    int fd = open(fileName, O_RDONLY);
+    if (fd == NULL)
+    {
+        perror("error while opening");
+        exit(-1);
+    }
+
+    while (1)
+    {
+        int readBytes = read(fd, buf, sizeof(buf));
+        if (readBytes > 0)
+            buf[readBytes - 1] = '\n';
+        if (readBytes <= 0)
+            break;
+    }
+
+    printf("============ %s begins ============\n\n", fileName);
+    printf("%s\n", buf);
+    printf("============ %s ends ============\n", fileName);
+}
+
+void dumpstate()
+{
+    dumpstate_handler("/proc/version");
+    dumpstate_handler("/proc/meminfo");
+    dumpstate_handler("/proc/slabinfo");
+    dumpstate_handler("/proc/vmstat");
+    dumpstate_handler("/proc/vmallocinfo");
+    dumpstate_handler("/proc/zoneinfo");
+    dumpstate_handler("/proc/pagetypeinfo");
+    dumpstate_handler("/proc/buddyinfo");
+    dumpstate_handler("/proc/net/dev");
+    dumpstate_handler("/proc/net/route");
+    dumpstate_handler("/proc/net/ipv6_route");
+    dumpstate_handler("/proc/interrupts");
+}
 
 void *monitor_thread_handler(void *arg)
 {
@@ -148,12 +190,19 @@ void *monitor_thread_handler(void *arg)
             printf("sensor humidity: %d\n", the_sensor_info->humidity);
             toy_shm_detach(the_sensor_info);
         }
+        else if (msg.msg_type == DUMP_STATE)
+        {
+            dumpstate();
+        }
+        else
+            perror("monitor_thread: unknown message.\n");
     }
 
     return 0;
 }
 
 // https://stackoverflow.com/questions/21618260/how-to-get-total-size-of-subdirectories-in-c
+// 정확한 디렉터리 사이즈를 구하기 위해서는 내부 파일의 사이즈를 다 합쳐야 함.
 static long total_dir_size(char *dirname)
 {
     DIR *dir = opendir(dirname);
@@ -273,6 +322,10 @@ void *camera_service_thread_handler(void *arg)
         printf("msg.param2 : %d\n", msg.param2);
         if (msg.msg_type == CAMERA_TAKE_PICTURE)
             toy_camera_take_picture();
+        else if (msg.msg_type == DUMP_STATE)
+            toy_camera_dump();
+        else
+            perror("camera_service_thread: unknown message.\n");
     }
 
     return 0;
