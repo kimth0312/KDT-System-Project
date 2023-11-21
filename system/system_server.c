@@ -137,8 +137,10 @@ void dumpstate_handler(const char *fileName)
     while (1)
     {
         int readBytes = read(fd, buf, sizeof(buf));
+        // 내용이 있으면 개행 문자 추가
         if (readBytes > 0)
             buf[readBytes - 1] = '\n';
+        // 내용이 없으면 반복문 break
         if (readBytes <= 0)
             break;
     }
@@ -146,6 +148,8 @@ void dumpstate_handler(const char *fileName)
     printf("============ %s begins ============\n\n", fileName);
     printf("%s\n", buf);
     printf("============ %s ends ============\n", fileName);
+
+    close(fd);
 }
 
 void dumpstate()
