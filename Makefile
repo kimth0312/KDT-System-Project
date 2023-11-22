@@ -8,12 +8,14 @@ HAL = ./hal
 INCLUDES = -I$(SYSTEM) -I$(UI) -I$(WEB_SERVER) -I$(HAL) -I .
 
 CC = gcc
-CXXLIBS = -lpthread -lm -lrt
+CXXLIBS = -lpthread -lm -lrt -Wl,--no-as-needed -ldl -lseccomp
 CXXFLAGS = $(INCLUDEDIRS) -g -O0 -std=c++14
 CXX = g++
 
-objects = main.o system_server.o web_server.o input.o gui.o shared_memory.o
-cxx_objects = camera_HAL.o ControlThread.o
+objects = main.o system_server.o web_server.o input.o gui.o shared_memory.o hardware.o
+# cxx_objects = camera_HAL.o ControlThread.o
+cxx_objects = 
+shared_libs = libcamera.oem.so libacamera.toy.so
 
 $(TARGET): $(objects) $(cxx_objects)
 	$(CXX) -o $(TARGET) $(objects) $(cxx_objects) $(CXXLIBS)
@@ -36,11 +38,19 @@ input.o: $(UI)/input.h $(UI)/input.c
 web_server.o: $(WEB_SERVER)/web_server.h $(WEB_SERVER)/web_server.c
 	$(CC) -g $(INCLUDES) -c $(WEB_SERVER)/web_server.c
 
-camera_HAL.o: $(HAL)/camera_HAL.cpp
-	$(CXX) -g $(INCLUDES) $(CXXFLAGS) -c  $(HAL)/camera_HAL.cpp
+hardware.o: $(HAL)/hardware.c
+	$(CC) -g $(INCLUDES) -c $(HAL)/hardware.c
 
-ControlThread.o: $(HAL)/ControlThread.cpp
-	$(CXX) -g $(INCLUDES) $(CXXFLAGS) -c  $(HAL)/ControlThread.cpp
+.PHONY: libcamera.oem.so
+libcamera.oem.so:
+	$(CC) -g -shared -fPIC -o libcamera.oem.so $(INCLUDES) $(CXXFLAGS) $(HAL)/oem/camera_HAL_oem.cpp $(HAL)/oem/ControlThread.cpp
+
+.PHONY: libcamera.toy.so
+libcamera.toy.so:
+	$(CC) -g -shared -fPIC -o libcamera.toy.so $(INCLUDES) $(CXXFLAGS) $(HAL)/toy/camera_HAL_toy.cpp $(HAL)/toy/ControlThread.cpp
+
+
+
 
 .PHONY: clean
 clean:

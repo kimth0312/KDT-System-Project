@@ -1,27 +1,30 @@
+#include <assert.h>
+#include <pthread.h>
 #include <stdio.h>
+#include <semaphore.h>
 #include <sys/prctl.h>
 #include <signal.h>
 #include <sys/time.h>
 #include <time.h>
-#include <pthread.h>
-#include <assert.h>
 #include <mqueue.h>
-#include <assert.h>
 #include <sys/inotify.h>
 #include <limits.h>
-#include <sys/sysmacros.h>
-#include <errno.h>
-#include <dirent.h>
 #include <sys/stat.h>
+#include <time.h>
+#include <sys/sysmacros.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <stdint.h>
+#include <string.h>
+#include <dirent.h>
 
 #include <system_server.h>
 #include <gui.h>
 #include <input.h>
 #include <web_server.h>
-#include <camera_HAL.h>
 #include <toy_message.h>
-#include <semaphore.h>
 #include <shared_memory.h>
+#include <hardware.h>
 
 #define BUF_LEN 1024
 #define TOY_TEST_FS "./fs"
@@ -128,7 +131,7 @@ void dumpstate_handler(const char *fileName)
     char buf[30000];
 
     int fd = open(fileName, O_RDONLY);
-    if (fd == NULL)
+    if (!fd)
     {
         perror("error while opening");
         exit(-1);
@@ -311,10 +314,18 @@ void *camera_service_thread_handler(void *arg)
     char *s = (char *)arg;
     int mqretcode;
     toy_msg_t msg;
+    hw_module_t *module = NULL;
+    int res;
 
     printf("%s", s);
 
-    toy_camera_open();
+    // initialize camera module
+    res = hw_get_camera_module((const hw_module_t **)&module);
+    assert(res == 0);
+    printf("Camera module name : %s\n", module->name);
+    printf("Camera module tag : %d\n", module->tag);
+    printf("Camera module id : %s\n", module->id);
+    module->open();
 
     while (1)
     {
@@ -325,9 +336,9 @@ void *camera_service_thread_handler(void *arg)
         printf("msg.param1 : %d\n", msg.param1);
         printf("msg.param2 : %d\n", msg.param2);
         if (msg.msg_type == CAMERA_TAKE_PICTURE)
-            toy_camera_take_picture();
+            module->take_picture();
         else if (msg.msg_type == DUMP_STATE)
-            toy_camera_dump();
+            module->dump();
         else
             perror("camera_service_thread: unknown message.\n");
     }

@@ -37,3 +37,12 @@ int toy_camera_dump(void)
 {
     return control_thread->dump();
 }
+
+hw_module_t HAL_MODULE_INFO_SYM = {
+    tag : HARDWARE_MODULE_TAG,
+    id : CAMERA_HARDWARE_MODULE_ID,
+    name : "TOY Camera Hardware Module",
+    open : toy_camera_open,
+    take_picture : toy_camera_take_picture,
+    dump : toy_camera_dump,
+};
