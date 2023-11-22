@@ -21,7 +21,7 @@ $(TARGET): $(objects) $(cxx_objects)
 	$(CXX) -o $(TARGET) $(objects) $(cxx_objects) $(CXXLIBS)
 
 main.o:  main.c
-	$(CC) -g $(INCLUDES) -c main.c
+	$(CC) -g  $(INCLUDES) -c main.c
 
 system_server.o: $(SYSTEM)/system_server.h $(SYSTEM)/system_server.c
 	$(CC) -g $(INCLUDES) -c ./system/system_server.c
@@ -48,9 +48,6 @@ libcamera.oem.so:
 .PHONY: libcamera.toy.so
 libcamera.toy.so:
 	$(CC) -g -shared -fPIC -o libcamera.toy.so $(INCLUDES) $(CXXFLAGS) $(HAL)/toy/camera_HAL_toy.cpp $(HAL)/toy/ControlThread.cpp
-
-
-
 
 .PHONY: clean
 clean:
